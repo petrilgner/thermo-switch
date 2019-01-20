@@ -1,0 +1,59 @@
+10656c626f636bfdfe000a      Login, heslo elbock
+02000054040000fdfe0d0a      Rezim OFF
+
+Neoverene
+
+02 00 00 54 04 00 32 fd  fe 0d 0a  Nastaveni 25°C OK
+02 00 00 54 01 00 33 fd  fe 0d 0a  Nastaveni 25.5
+02 00 00 54 01 00 34 fd  fe 0d 0a  Nastaveni 26°C
+02 00 00 54 01 00 28 fd  fe 0d 0a  Nastaveni 23°C OK
+
+02 00 00 54 04 01 2a fd  fe 0d 0a  Nastaveni Auto, Program4
+02 00 00 54 01 01 06 fd  fe 0d 0a  Nastaveni Auto, Program1
+
+Automaticky rezim
+02 00 00 54 01 01 06 fd  fe 0d 0a
+            PR REZ TEPL
+
+
+Zjisteni rezimu - NEJSPIS nefunguije
+Pozadavek:
+06 00 00 00 05 00 03 fd  fe 0d 0a  Zjistit rezim
+
+Odpoved:
+05 03 01 00 00 07 00 02  fd fe 0d 0a
+   Pro Rez
+
+Zjisteni verze konfigurace:
+Pozadavek:
+06 00 00 00 05 00 02 fd  fe 0d 0a
+Odpoved:
+05 00 00 00 8f 00 00 fd  fe 0d 0a
+            VERZE KONFIGURACE?
+
+
+
+Zjisteni programu:
+Pozadavek:
+06 00 00 00 02 00 00 fd  fe 0d 0a
+Odpoved:
+05 19 00 09 07 05 30 00  fd fe 0d 0a
+            PR_ID
+
+
+06000000050018fdfe0d0a   Posledni data (logout)
+
+
+Zjisteni teploty atd
+
+Pozadavek:
+00000940  06 00 00 00 02 00 00 fd  fe 0d 0a                  ........ ...
+
+Odpoved
+00000304  05 20 00 04 04 04 32 00  fd fe 0d 0a               . ....2. ....
+             Zaklad v Hex
+                   Des. cas
+                      Program (1-7)
+                          Rezim (5 auto, 4 manual)
+                            Pozadovana teplota (/0.5)C
+                                Stav Rele (40 zapnuto, 0 vypnuto)
