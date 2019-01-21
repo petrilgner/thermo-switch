@@ -1,4 +1,5 @@
 10656c626f636bfdfe000a      Login, heslo elbock
+10656c626f636bfdfe000a      Login, heslo bjb200
 02000054040000fdfe0d0a      Rezim OFF
 
 Neoverene
@@ -15,6 +16,23 @@ Automaticky rezim
 02 00 00 54 01 01 06 fd  fe 0d 0a
             PR REZ TEPL
 
+Zjistění maximální pov. teploty:
+Pozadavek: 06 00 00 4d 06 58 00 fd  fe 0d 0a
+Odpoved: 05 06 4d 58 23 26 fd fe  0d 0a
+                        Max. teplota
+
+Zjistění minimální pov. teploty:
+Pozadavek: 06 00 00 4d 06 49 00 fd  fe 0d 0a
+Odpoved: 05 06 4d 49 23 12 fd fe  0d 0a
+                        Min. teplota
+
+Zjisteni zamku klaves
+Pozadavek: 06 00 00 4c 06 4b 00 fd  fe 0d 0a
+
+Odpoved OFF: fe 00 00 0f 00 6c c8 23  3f ff ff 23 fd fe 0d 0a
+Odpoved ON:  05 06 4c 4b 23 41 fd fe  0d 0a                     ..LK#A.. ..
+             05 06 4c 4b 23 4e fd fe  0d 0a                     ..LK#N.. ..
+                            ZAMEK ON
 
 Zjisteni rezimu - NEJSPIS nefunguije
 Pozadavek:
@@ -30,6 +48,15 @@ Pozadavek:
 Odpoved:
 05 00 00 00 8f 00 00 fd  fe 0d 0a
             VERZE KONFIGURACE?
+
+Overeni verze dat - ASI Probehne pred dialogem SYNC DIRECTION:
+Pozadavek (dva zaznamenane):
+07 13 01 15 0d 06 2f fd  fe 0d 0a (1)
+07 13 01 15 0d 09 26 fd  fe 0d 0a (2)
+                *  *  Meni se
+Odpoved:
+04 50 07 13 01 15 0d fd  fe 0d 0a
+
 
 
 

@@ -1,9 +1,9 @@
 import socket
 import time
+import config
 
-PORTNUM = 4000
 BUFFER_SIZE = 1024
-LOGIN_HEX = "10656c626f636bfdfe000a"
+config.LOGIN_HEX = "10626a62323030fdfe0d0a"
 
 modes = {
     4: "manual",
@@ -17,7 +17,18 @@ def get_status_data(socket):
     mode_id = rec_data[5]
     req_temp = rec_data[6] * 0.5
     relay_state = rec_data[7] > 0
-    return {"temp": temp, "mode": modes[mode_id], "program": prog_id, "req_temp": req_temp, "relay": relay_state}
+
+    rec_data = send_data(socket, "06 00 00 4d 06 58 00 fd  fe 0d 0a")
+    min_temp = rec_data[5]*0.5
+
+    rec_data = send_data(socket, "06 00 00 4d 06 49 00 fd  fe 0d 0a")
+    max_temp = rec_data[5] * 0.5
+
+    rec_data = send_data(socket, "06 00 00 4c 06 4b 00 fd  fe 0d 0a")
+    locked = rec_data[5] == ord('A')
+
+    return {"temp": temp, "mode": modes[mode_id], "program": prog_id, "req_temp": req_temp, "relay": relay_state,
+            "min_temp": min_temp, "max_temp": max_temp, "locked": locked}
 
 def get_status(ip):
     tries = 3
@@ -25,8 +36,8 @@ def get_status(ip):
     while tries:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((ip, PORTNUM))
-            send_data(s, LOGIN_HEX)  # login
+            s.connect((ip, config.PORT_NUM))
+            send_data(s, config.LOGIN_HEX)  # login
             status_data = get_status_data(s)
             send_data(s, "06000000050018fdfe0d0a")  # logout
             s.close()
@@ -44,15 +55,15 @@ def get_status(ip):
 
 def send_logout(ip):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((ip, PORTNUM))
+    s.connect((ip, config.PORT_NUM))
     send_data(s, "06000000050018fdfe0d0a")
     s.close()
 
 
 def set_manual_temp(ip, temp):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((ip, PORTNUM))
-    send_data(s, LOGIN_HEX)  # login
+    s.connect((ip, config.PORT_NUM))
+    send_data(s, config.LOGIN_HEX)  # login
     req_bytes = bytearray.fromhex("02000054010028fdfe0d0a")
     req_bytes[6] = temp * 2
     s.send(req_bytes)
@@ -64,13 +75,15 @@ def set_manual_temp(ip, temp):
     return status_data
 
 
-def set_auto_prog(ip, prog):
+def set_auto_prog(ip, prog, req_temp=23.0):
     if 0 < prog < 8:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((ip, PORTNUM))
-        send_data(s, LOGIN_HEX)  # login
-        req_bytes = bytearray.fromhex("02000054010106fdfe0d0a")
+        s.connect((ip, config.PORT_NUM))
+        send_data(s, config.LOGIN_HEX)  # login
+        req_bytes = bytearray.fromhex("02000054010132fdfe0d0a")
         req_bytes[4] = prog
+        req_bytes[6] = int(req_temp/0.5)
+
         s.send(req_bytes)
         send_data(s, "06000000050018fdfe0d0a")  # ACK
 
@@ -93,5 +106,5 @@ def send_data(s, hex):
 if __name__ == "__main__":
     pass
     # print(get_status('192.168.11.4'))
-    # print(set_manual_temp('192.168.11.4', 23))
+
 

@@ -1,24 +1,19 @@
 #!/usr/bin/python
 
 from librouteros import connect
-from librouteros.login import login_plain
-
-ROUTER_API_IP = "192.168.11.1"
-
-api = connect(host=ROUTER_API_IP, username='admin', password='***', port=8728)
-method = (login_plain, )
+import config
 
 
 def change_ip(new_ip):
-    params = {'comment': 'ThermoDST'}
+    api = connect(host=config.ROUTER_API_IP, username='admin', password='utkolinda', port=8728)
     out = api(cmd='/ip/firewall/nat/print')
     for entry in out:
         if 'comment' in entry:
-            if entry['comment'] == 'ThermoDST':
+            if entry['comment'] == config.ROUTER_DST_COMMENT:
                 params = {'to-addresses': new_ip, '.id': entry['.id']}
                 api(cmd='/ip/firewall/nat/set', **params)
 
-            if entry['comment'] == 'ThermoSRC':
+            if entry['comment'] == config.ROUTER_SRC_COMMENT:
                 params = {'dst-address': new_ip, '.id': entry['.id']}
                 api(cmd='/ip/firewall/nat/set', **params)
 
