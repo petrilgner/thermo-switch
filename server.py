@@ -1,3 +1,4 @@
+from multiprocessing import Pool
 from flask import Flask
 from flask import jsonify
 from flask import request
@@ -12,27 +13,52 @@ thermo_dict = {}
 last_update = 0
 
 
+def load_status(props):
+    try:
+        status_dict = thermo_com.get_status(props['ip'])
+        status_dict['display'] = props['display']
+        return props['name'], status_dict
+
+    except Exception as e:
+        print(e)
+
+
 @app.route("/")
 def thermo_list():
     global thermo_dict, last_update
-    output = dict()
+
+    output_arr = []
+    input_arr = []
+    output = {}
+
+    if config.MESSAGE:
+        output['message'] = config.MESSAGE,
+        output['exit'] = config.MESSAGE_CLOSE
+
+        if config.MESSAGE_CLOSE:
+            return jsonify(output)
+
+
+    # prepare array
+    for key, props in config.DEVICES.items():
+        props['name'] = key
+        input_arr.append(props)
 
     # update data
     if time.time() > (last_update + config.DATA_VALIDITY_SEC):
-        for name, props in config.DEVICES.items():
-            try:
-                status_dict = thermo_com.get_status(props['ip'])
-                thermo_dict[name] = status_dict
-                thermo_dict[name]['display'] = props['display']
-            except Exception as e:
-                print(e)
-                continue
+
+        # fetch data in parallel
+        with Pool(processes=len(config.DEVICES)) as pool:
+            output_arr = pool.map(load_status, input_arr)
+
+        # assembly thermo dict
+        for name, values in output_arr:
+            thermo_dict[name] = values
 
         last_update = time.time()
 
     output['data'] = thermo_dict
     output['lastUpdate'] = last_update
-
     return jsonify(output)
 
 
@@ -79,4 +105,4 @@ def auto_switch():
 
 # Run Flask app
 if __name__ == "__main__":
-    app.run(host='192.168.11.100', port=5000)
+    app.run(host=config.LISTEN_IP, port=config.LISTEN_PORT)

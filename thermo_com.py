@@ -3,7 +3,6 @@ import time
 import config
 
 BUFFER_SIZE = 1024
-config.LOGIN_HEX = "10626a62323030fdfe0d0a"
 
 modes = {
     4: "manual",
@@ -19,10 +18,10 @@ def get_status_data(socket):
     relay_state = rec_data[7] > 0
 
     rec_data = send_data(socket, "06 00 00 4d 06 58 00 fd  fe 0d 0a")
-    min_temp = rec_data[5]*0.5
+    max_temp = rec_data[5]*0.5
 
     rec_data = send_data(socket, "06 00 00 4d 06 49 00 fd  fe 0d 0a")
-    max_temp = rec_data[5] * 0.5
+    min_temp = rec_data[5] * 0.5
 
     rec_data = send_data(socket, "06 00 00 4c 06 4b 00 fd  fe 0d 0a")
     locked = rec_data[5] == ord('A')
