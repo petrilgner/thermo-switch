@@ -5,7 +5,7 @@ import config
 
 
 def change_ip(new_ip):
-    api = connect(host=config.ROUTER_API_IP, username='admin', password='utkolinda', port=8728)
+    api = connect(host=config.ROUTER_API_IP, username=config.ROUTER_API_USER, password=config.ROUTER_API_PASSWORD, port=config.ROUTER_API_PORT)
     out = api(cmd='/ip/firewall/nat/print')
     for entry in out:
         if 'comment' in entry:
