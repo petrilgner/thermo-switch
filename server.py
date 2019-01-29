@@ -65,6 +65,16 @@ def thermo_list():
     return jsonify(output)
 
 
+@app.route("/schedule", methods=['GET'])
+def load_schedule():
+    global last_update
+    name = request.args.get('name', type=str)
+    prog = request.args.get('prog', type=int, default=1)
+
+    if name in config.DEVICES:
+        return jsonify(thermo_com.get_program(config.DEVICES[name]['ip'], prog))
+
+
 @app.route("/invalidate", methods=['GET'])
 def invalidate_data():
     global last_update
@@ -100,6 +110,7 @@ def manual_switch():
         except Exception as e:
             eprint(e)
             abort(500)
+            return False
 
         return jsonify(status_data)
 

@@ -84,3 +84,17 @@ Odpoved
                           Rezim (5 auto, 4 manual)
                             Pozadovana teplota (/0.5)C
                                 Stav Rele (40 zapnuto, 0 vypnuto)
+
+
+Vycitani programu - pracovni dny
+
+Pozadavek:
+06 00 00 00 03 01 00 fd  fe 0d 0a
+               Cislo programu
+
+Odpoved:
+                     Po                      Ut                                  St                                  Ct                                  Pa                                     So                                  Ne
+         01    02    03    04    05    06    01    02    03    04    05    06    01    02    03    04    05    06    01    02    03    04    05    06    01    02    03    04    05    06       01    02    03    04    05    06    01    02    03    04    05    06
+05 01 23 02 06 02 06 02 06 02 06 02 06 02 06 01 24 54 24 54 24 54 24 54 24 54 24 64 24 64 24 64 24 64 24 64 24 64 24 45 24 45 24 45 24 45 24 45 24 45 24 00 09 b0 24 bb 24 bb 24 bb 24 bb 24 02 09 02 09 02 09 02 09 02 09 02 09 01 24 01 24 01 24 01 24 01 24 01 24 fd fe 0d 0a
+         Cas - Hodina (nasobky 8), napr. 2h = 2*8=16 +  Minuta - 10 minut = 1, napr. 20=2... tj 01:20 = 10
+            Teplota = HODN/0.5
