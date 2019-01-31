@@ -3,13 +3,18 @@ import time
 import config
 
 BUFFER_SIZE = 92
-TIMEOUT_SEC = 0.4
-PROG_COUNT = 6
+TIMEOUT_SEC = 0.5
+CHANGE_COUNT = 6
+PROG_COUNT = 8
 
 modes = {
     4: "manual",
     5: "auto"
 }
+
+
+def print_hex(hex_data):
+    print(" ".join(["{:02x}".format(x) for x in hex_data]))
 
 
 def get_status_data(socket):
@@ -79,7 +84,7 @@ def set_manual_temp(ip, temp):
 
 
 def set_auto_prog(ip, prog, req_temp=23.0):
-    if 0 < prog < PROG_COUNT:
+    if 0 < prog < CHANGE_COUNT:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((ip, config.PORT_NUM))
         send_data(s, config.LOGIN_HEX)  # login
@@ -96,67 +101,129 @@ def set_auto_prog(ip, prog, req_temp=23.0):
         return status_data
 
 
-def get_program(ip, prog):
+def read_program_socket(s: socket, prog_id: int) -> dict:
     days = {}
-    if 0 < prog < PROG_COUNT:
+
+    req_bytes = bytearray.fromhex("06 00 00 00 03 01 00 fd  fe 0d 0a")  # pr1
+    req_bytes[5] = prog_id  # change program ID
+    rec_data = send_multi_data(s, req_bytes.hex())
+
+    work_days, weekend = rec_data
+    days_data = work_days + weekend
+
+    for day in range(7):
+        start_index = 3 + day * CHANGE_COUNT * 2
+        end_index = start_index + CHANGE_COUNT * 2
+        days[day + 1] = decode_program_day(days_data[start_index:end_index])
+
+    return days
+
+
+def write_program_socket(s: socket, prog_id: int, prog_data: dict) -> None:
+    request = bytearray.fromhex("0d000120")
+    request[2] = prog_id
+
+    for day, changes in prog_data.items():  # type: int, dict
+        print("DAY {0}".format(day))
+        request += encode_program_day(changes)
+
+    request += bytearray.fromhex("fdfe0d0a")
+    print_hex(request)
+    s.send(request)  # send programming command
+    print_hex(s.recv(BUFFER_SIZE))
+
+
+def get_program(ip, prog_id) -> dict:
+    prog_data = {}
+    if 0 < prog_id < CHANGE_COUNT:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((ip, config.PORT_NUM))
         send_data(s, config.LOGIN_HEX)  # login
 
-        req_bytes = bytearray.fromhex("06 00 00 00 03 01 00 fd  fe 0d 0a")      # pr1
-        req_bytes[5] = prog         # change program ID
-        rec_data = send_multidata(s, req_bytes.hex())
-
-        work_days, weekend = rec_data
-        days_data = work_days + weekend
-
-        send_data(s, "06000000050018fdfe0d0a")  # ACK
+        prog_data = read_program_socket(s, prog_id)
+        send_data(s, "06000000050018fdfe0d0a")  # logout
         s.close()
 
-        # work days
-        for day in range(7):
-            start_index = 3 + day * PROG_COUNT * 2
-            end_index = start_index + PROG_COUNT * 2
-            days[day+1] = parse_program_day(days_data[start_index:end_index])
-
-        return days
+    return prog_data
 
 
-def parse_program_day(array):
+def set_program(ip: str, prog_id: int, prog_data: dict) -> None:
+    if 0 < prog_id < CHANGE_COUNT:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((ip, config.PORT_NUM))
+        send_data(s, config.LOGIN_HEX)  # login
+
+        write_program_socket(s, prog_id, prog_data)
+        send_data(s, "06000000050018fdfe0d0a")  # logout
+        s.close()
+
+
+def get_programs(ip) -> dict:
+    prog_data = {}
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((ip, config.PORT_NUM))
+    send_data(s, config.LOGIN_HEX)  # login
+
+    for prog_id in range(PROG_COUNT):
+        print("PROG" + str(prog_id))
+        prog_data[prog_id + 1] = read_program_socket(s, prog_id + 1)
+
+    s.close()
+    return prog_data
+
+
+def decode_program_day(array):
     day = {}
 
-    for prog in range(PROG_COUNT):
-        day[prog+1] = parse_program_entry(array[prog*2:prog*2+2])
+    for prog in range(CHANGE_COUNT):
+        day[prog + 1] = decode_program_entry(array[prog * 2:prog * 2 + 2])
 
     return day
 
 
-def parse_program_entry(p_bytes):
-    hour = int(p_bytes[0]/8)
+def decode_program_entry(p_bytes):
+    hour = int(p_bytes[0] / 8)
     minute = (p_bytes[0] % 8) * 10
     return {"hour": hour, "minute": minute, "temp": p_bytes[1] * 0.5}
 
 
-def send_data(s, hex):
-    print("REQ " + hex)
-    data = bytes.fromhex(hex.strip())
+def encode_program_entry(hour: int, minute: int, temp: float) -> bytearray:
+    p_bytes = bytearray()
+    p_bytes.append(hour * 8 + int(minute / 10))
+    p_bytes.append(int(temp / 0.5))
+    return p_bytes
+
+
+def encode_program_day(day_data) -> bytearray:
+    p_bytes = bytearray()
+    for prog in range(CHANGE_COUNT):
+        change = day_data[str(prog + 1)]  # type: dict
+        p_bytes += encode_program_entry(change["hour"], change["minute"], change["temp"])
+
+    return p_bytes
+
+
+def send_data(s, hex_value):
+    s.settimeout(TIMEOUT_SEC)
+    print("REQ " + hex_value)
+    data = bytes.fromhex(hex_value.strip())
     s.send(data)
     rec_data = s.recv(BUFFER_SIZE)
-    print(" ".join(["{:02x}".format(x) for x in rec_data]))
+    print(rec_data)
 
     return rec_data
 
 
-def send_multidata(s, hex, count=2):
-    print("REQM" + str(count) + " " + hex)
-    data = bytes.fromhex(hex.strip())
-    s.send(data)
+def send_multi_data(s, hex_value, count=2):
     s.settimeout(TIMEOUT_SEC)
+    print("REQM" + str(count) + " " + hex_value)
+    data = bytes.fromhex(hex_value.strip())
+    s.send(data)
     rec_data = []
 
     for i in range(count):
         rec_data.append(s.recv(BUFFER_SIZE))
-        print(" ".join(["{:02x}".format(x) for x in rec_data[i]]))
+        print_hex(rec_data[i])
 
         if not rec_data[i]:
             break

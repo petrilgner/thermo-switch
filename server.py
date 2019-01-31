@@ -5,6 +5,7 @@ import thermo_com
 import router_com
 import config
 import sys
+import json
 
 app = Flask(__name__)
 
@@ -69,10 +70,21 @@ def thermo_list():
 def load_schedule():
     global last_update
     name = request.args.get('name', type=str)
-    prog = request.args.get('prog', type=int, default=1)
+    prog = request.args.get('prog', type=int)
 
     if name in config.DEVICES:
-        return jsonify(thermo_com.get_program(config.DEVICES[name]['ip'], prog))
+        try:
+            if prog:
+                return jsonify(thermo_com.get_program(config.DEVICES[name]['ip'], prog))
+            else:
+                return jsonify(thermo_com.get_programs(config.DEVICES[name]['ip']))
+
+        except (ConnectionResetError, ConnectionAbortedError, ConnectionRefusedError) as e:
+            eprint(e)
+            abort(503)
+        except Exception as e:
+            eprint(e)
+            abort(500)
 
 
 @app.route("/invalidate", methods=['GET'])
@@ -130,6 +142,24 @@ def auto_switch():
         except Exception as e:
             eprint(e)
             abort(500)
+
+
+@app.route("/update-schedule", methods=['GET'])
+def update_schedule():
+    if not request.json:
+        eprint('No JSON request received.')
+        abort(400)
+
+    result = False
+    name = request.args.get('name', type=str)
+    prog = request.args.get('prog', type=int, default=1)
+
+    data = json.loads(request.data)
+
+    if name in config.DEVICES:
+        thermo_com.set_program(config.DEVICES[name]['ip'], prog, data)
+
+    return jsonify({"status": str(result)})
 
 
 # Run Flask app
