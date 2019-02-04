@@ -1,7 +1,7 @@
-from multiprocessing import Pool
+import threading
 from flask import Flask, jsonify, request, abort
-import time
-import thermo_com
+from time import time
+from thermo import Thermo
 import router_com
 import config
 import sys
@@ -17,21 +17,36 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def load_status(props):
+@app.before_first_request
+def activate_job():
+    # create thermo objects
+    for dev_key, dev_props in config.DEVICES.items():
+        thermo_dict[dev_key] = Thermo(dev_props['ip'], dev_props['display'])
+        thermo_dict[dev_key].set_debug()
+
+
+def update_job(thermo: Thermo):
     try:
-        status_dict = thermo_com.get_status(props['ip'])
-        status_dict['display'] = props['display']
-        return props['name'], status_dict
+        thermo.connect()
+        thermo.update_status()
+        thermo.disconnect()
 
     except Exception as e:
-        eprint(e)
+        eprint("[LOAD_EXCEPTION] %s " % e)
+
+
+def get_thermo(name: str) -> Thermo:
+    thermo = thermo_dict.get(name)  # type: Thermo
+    if not thermo:
+        eprint('Thermostat %s not found!' % name)
+        abort(400, description="Thermostat with name %s not found!" % name)
+    else:
+        return thermo
 
 
 @app.route("/")
 def thermo_list():
     global thermo_dict, last_update
-
-    input_arr = []
     output = {}
 
     if config.MESSAGE:
@@ -41,50 +56,49 @@ def thermo_list():
         if config.MESSAGE_CLOSE:
             return jsonify(output)
 
-    # prepare the multiprocessing input array
-    for key, props in config.DEVICES.items():
-        props['name'] = key
-        input_arr.append(props)
-
     # update data
-    if time.time() > (last_update + config.DATA_VALIDITY_SEC):
-
+    if time() > (last_update + config.DATA_VALIDITY_SEC):
         # fetch data in parallel
-        with Pool(processes=len(config.DEVICES)) as pool:
-            output_arr = pool.map(load_status, input_arr)
+        print(thermo_dict)
+        values = thermo_dict.values()
+        print(thermo_dict)
+        print(values)
 
-        # assembly thermo dict
-        for entry in output_arr:
-            if entry:
-                name, values = entry
-                thermo_dict[name] = values
+        threads = []
 
-        last_update = time.time()
+        for thermo in values:
+            thread = threading.Thread(target=update_job, args=(thermo,))
+            thread.start()
+            threads.append(thread)
 
-    output['data'] = thermo_dict
+        # wait to threads done
+        for x in threads:
+            x.join()
+
+        last_update = time()
+
+    output['data'] = {k: v.status_data for (k, v) in thermo_dict.items()}
     output['lastUpdate'] = last_update
+
     return jsonify(output)
 
 
 @app.route("/schedule", methods=['GET'])
 def load_schedule():
-    global last_update
     name = request.args.get('name', type=str)
     prog = request.args.get('prog', type=int)
+    thermo = get_thermo(name)
 
-    if name in config.DEVICES:
-        try:
-            if prog:
-                return jsonify(thermo_com.get_program(config.DEVICES[name]['ip'], prog))
-            else:
-                return jsonify(thermo_com.get_programs(config.DEVICES[name]['ip']))
-
-        except (ConnectionResetError, ConnectionAbortedError, ConnectionRefusedError) as e:
-            eprint(e)
-            abort(503)
-        except Exception as e:
-            eprint(e)
-            abort(500)
+    try:
+        thermo.connect()
+        output = thermo.get_program(prog) if prog else thermo.get_programs()
+        return jsonify(output)
+    except (ConnectionResetError, ConnectionAbortedError, ConnectionRefusedError) as e:
+        eprint("[CONN_EXCEPT] %s" % e)
+        abort(503)
+    except Exception as e:
+        eprint("[EXCEPT] %s" % e)
+        abort(500)
 
 
 @app.route("/invalidate", methods=['GET'])
@@ -105,7 +119,7 @@ def switch_router():
             return jsonify({"status": "true"})
 
         except Exception as e:
-            eprint(e)
+            eprint("[EXCEPT] %s" % e)
             abort(500)
 
 
@@ -114,50 +128,62 @@ def manual_switch():
     global last_update
     name = request.args.get('name', type=str)
     temp = request.args.get('temp', type=int, default=20)
-    if name in config.DEVICES:
-        try:
-            status_data = thermo_com.set_manual_temp(config.DEVICES[name]['ip'], temp)
-            thermo_dict[name].update(status_data)
+    thermo = get_thermo(name)
 
-        except Exception as e:
-            eprint(e)
-            abort(500)
-            return False
+    try:
+        thermo.connect()
+        thermo.set_manual_temp(temp)
+        data = thermo.get_status_data()
+        thermo.disconnect()
+        return jsonify(data)
 
-        return jsonify(status_data)
+    except Exception as e:
+        eprint("[EXCEPT] %s" % e)
+        abort(500)
+        return False
 
 
 @app.route("/auto", methods=['GET'])
 def auto_switch():
-    global last_update
     name = request.args.get('name', type=str)
     prog = request.args.get('prog', type=int, default=1)
     temp = request.args.get('temp', type=int, default=None)
-    if name in config.DEVICES:
-        try:
-            status_data = thermo_com.set_auto_prog(config.DEVICES[name]['ip'], prog, temp)
-            thermo_dict[name].update(status_data)
-            return jsonify(status_data)
+    thermo = get_thermo(name)
 
-        except Exception as e:
-            eprint(e)
-            abort(500)
+    try:
+        thermo.connect()
+        thermo.set_auto_prog(prog, temp)
+        data = thermo.get_status_data()
+        thermo.disconnect()
+        return jsonify(data)
+
+    except Exception as e:
+        eprint("[EXCEPT] %s" % e)
+        abort(500)
+        return False
 
 
-@app.route("/update-schedule", methods=['GET'])
+@app.route("/update-schedule", methods=['POST'])
 def update_schedule():
     if not request.json:
         eprint('No JSON request received.')
-        abort(400)
+        abort(400, description="No JSON request received.")
 
     result = False
     name = request.args.get('name', type=str)
     prog = request.args.get('prog', type=int, default=1)
-
     data = json.loads(request.data)
+    thermo = get_thermo(name)
 
-    if name in config.DEVICES:
-        thermo_com.set_program(config.DEVICES[name]['ip'], prog, data)
+    try:
+        thermo.connect()
+        thermo.set_program(prog, data)
+        thermo.disconnect()
+        result = True
+
+    except Exception as e:
+        eprint("[EXCEPT] %s" % e)
+        abort(500)
 
     return jsonify({"status": str(result)})
 
