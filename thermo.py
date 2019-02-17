@@ -67,6 +67,9 @@ class Thermo:
         self.ip = ip
         self.display = display
 
+    def __str__(self):
+        return "<Thermo> IP: {}".format(self.ip, self.last_update)
+
     def set_debug(self):
         self.print_requests = True
 
@@ -86,11 +89,15 @@ class Thermo:
             except ConnectionError as e:
                 print("[CONN_ERR] %s" % e)
                 attempts -= 1
+            except OSError as e:
+                print("[CONN_OS_ERR] %s" % e)
+                attempts -= 1
 
-                if not attempts:
-                    raise Exception('No more tries, interrupted.')
+            if not attempts:
+                print("[CONN_GIVEUP] Giving up...")
+                raise ConnectError('No more tries, interrupted.')
 
-                sleep(1)
+            sleep(1)
 
     def disconnect(self):
         self.send_hex_data("06000000050018fdfe0d0a")
@@ -101,7 +108,7 @@ class Thermo:
 
     def send_data(self, send_data: bytes, timeout: int = TIMEOUT_SEC):
         if not self.s:
-            raise Exception('Thermostat is not connected.')
+            raise ProcessingError('Thermostat is not connected.')
 
         self.s.settimeout(timeout)
         if self.print_requests:
@@ -140,31 +147,35 @@ class Thermo:
 
     def update_status(self):
         rec_data = self.send_hex_data("06 00 00 00 02 00 00 fd fe 0d 0a")  # get temperature
-        temp = rec_data[1] + rec_data[3] / 10  # convert to decimal temp
-        prog_id = rec_data[4]
-        mode_id = rec_data[5]
+        try:
+            temp = rec_data[1] + rec_data[3] / 10  # convert to decimal temp
+            prog_id = rec_data[4]
+            mode_id = rec_data[5]
 
-        req_temp = rec_data[6] * 0.5
-        relay_state = rec_data[7] > 0
+            req_temp = rec_data[6] * 0.5
+            relay_state = rec_data[7] > 0
 
-        # fetch thermostat settings
-        rec_data = self.send_hex_data("06 00 00 4d 06 58 00 fd  fe 0d 0a")
-        max_temp = rec_data[5] * 0.5
+            # fetch thermostat settings
+            rec_data = self.send_hex_data("06 00 00 4d 06 58 00 fd  fe 0d 0a")
+            max_temp = rec_data[5] * 0.5
 
-        rec_data = self.send_hex_data("06 00 00 4d 06 49 00 fd  fe 0d 0a")
-        min_temp = rec_data[5] * 0.5
+            rec_data = self.send_hex_data("06 00 00 4d 06 49 00 fd  fe 0d 0a")
+            min_temp = rec_data[5] * 0.5
 
-        rec_data = self.send_hex_data("06 00 00 4c 06 4b 00 fd  fe 0d 0a")
-        locked = rec_data[5] == ord('A')
+            rec_data = self.send_hex_data("06 00 00 4c 06 4b 00 fd  fe 0d 0a")
+            locked = rec_data[5] == ord('A')
 
-        self.status_data = {"temp": temp, "mode": self.modes.get(mode_id), "program": prog_id, "req_temp": req_temp,
-                            "relay": relay_state, "min_temp": min_temp, "max_temp": max_temp, "locked": locked,
-                            "updated": int(time()), "display": self.display}
+            self.status_data = {"temp": temp, "mode": self.modes.get(mode_id), "program": prog_id, "req_temp": req_temp,
+                                "relay": relay_state, "min_temp": min_temp, "max_temp": max_temp, "locked": locked,
+                                "updated": int(time()), "display": self.display}
 
-        if self.print_requests:
-            print("STATUS: " + str(self.status_data))
+            if self.print_requests:
+                print("STATUS: " + str(self.status_data))
 
-        self.last_update = time()
+            self.last_update = time()
+
+        except IndexError as e:
+            raise ProcessingError('Value processing error', e)
 
     def get_status_data(self, update_data: bool = True) -> dict:
         if update_data and (not self.status_data or (time() > (self.last_update + config.DATA_VALIDITY_SEC))):
@@ -228,3 +239,11 @@ class Thermo:
 
     def invalidate_status_data(self):
         self.last_update = 0
+
+
+class ConnectError(Exception):
+    """Basic exception for errors raised by connection troubles."""
+
+
+class ProcessingError(Exception):
+    """Basic exception for errors raised by values processing."""

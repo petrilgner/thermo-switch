@@ -1,7 +1,7 @@
 import threading
 from flask import Flask, jsonify, request, abort
 from time import time
-from thermo import Thermo
+from thermo import Thermo, ProcessingError, ConnectError
 import router_com
 import config
 import sys
@@ -22,7 +22,7 @@ def activate_job():
     # create thermo objects
     for dev_key, dev_props in config.DEVICES.items():
         thermo_dict[dev_key] = Thermo(dev_props['ip'], dev_props['display'])
-        thermo_dict[dev_key].set_debug()
+        # thermo_dict[dev_key].set_debug()
 
 
 def update_job(thermo: Thermo):
@@ -31,8 +31,14 @@ def update_job(thermo: Thermo):
         thermo.update_status()
         thermo.disconnect()
 
+    except ConnectError as e:
+        eprint("[CONN_EXCEPT][%s] %s " % (thermo, e))
+
+    except ProcessingError as e:
+        eprint("[VAL_EXCEPT][%s] %s " % (thermo, e))
+
     except Exception as e:
-        eprint("[LOAD_EXCEPTION] %s " % e)
+        eprint("[EXCEPT][%s] %s " % (thermo, e))
 
 
 def get_thermo(name: str) -> Thermo:
@@ -59,13 +65,9 @@ def thermo_list():
     # update data
     if time() > (last_update + config.DATA_VALIDITY_SEC):
         # fetch data in parallel
-        print(thermo_dict)
         values = thermo_dict.values()
-        print(thermo_dict)
-        print(values)
 
         threads = []
-
         for thermo in values:
             thread = threading.Thread(target=update_job, args=(thermo,))
             thread.start()
@@ -93,7 +95,7 @@ def load_schedule():
         thermo.connect()
         output = thermo.get_program(prog) if prog else thermo.get_programs()
         return jsonify(output)
-    except (ConnectionResetError, ConnectionAbortedError, ConnectionRefusedError) as e:
+    except ConnectError as e:
         eprint("[CONN_EXCEPT] %s" % e)
         abort(503)
     except Exception as e:
