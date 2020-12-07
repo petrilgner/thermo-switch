@@ -75,6 +75,7 @@ class Thermo:
 
     def connect(self, attempts: int = 3):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.s.settimeout(1.50)
         socket_tuple = (self.ip, self.port_number)
 
         while attempts:
