@@ -1,11 +1,14 @@
-import threading
-from flask import Flask, jsonify, request, abort
-from time import time
-from thermo import Thermo, ProcessingError, ConnectError
-import router_com
-import config
-import sys
 import json
+import sys
+import threading
+from time import time
+
+from flask import Flask, jsonify, request, abort
+
+import config
+import database
+import router_com
+from thermo import Thermo, ProcessingError, ConnectError
 
 app = Flask(__name__)
 
@@ -19,9 +22,18 @@ def eprint(*args, **kwargs):
 
 @app.before_first_request
 def activate_job():
+    # create db connection
+    db = None
+    if config.STATS_ENABLED:
+        try:
+            db = database.Database()
+
+        except Exception:
+            eprint('Error connecting to the stats DB')
+
     # create thermo objects
     for dev_key, dev_props in config.DEVICES.items():
-        thermo_dict[dev_key] = Thermo(dev_props['ip'], dev_props['display'])
+        thermo_dict[dev_key] = Thermo(dev_props['ip'], dev_props['display'], db)
         # thermo_dict[dev_key].set_debug()
 
 
@@ -39,6 +51,27 @@ def update_job(thermo: Thermo):
 
     except Exception as e:
         eprint("[EXCEPT][%s] %s " % (thermo, e))
+
+
+def update_thermo_data():
+    global thermo_dict, last_update
+
+    # update data
+    if time() > (last_update + config.DATA_VALIDITY_SEC):
+        # fetch data in parallel
+        values = thermo_dict.values()
+
+        threads = []
+        for thermo in values:
+            thread = threading.Thread(target=update_job, args=(thermo,))
+            thread.start()
+            threads.append(thread)
+
+        # wait to threads done
+        for x in threads:
+            x.join()
+
+        last_update = time()
 
 
 def get_thermo(name: str) -> Thermo:
@@ -62,27 +95,21 @@ def thermo_list():
         if config.MESSAGE_CLOSE:
             return jsonify(output)
 
-    # update data
-    if time() > (last_update + config.DATA_VALIDITY_SEC):
-        # fetch data in parallel
-        values = thermo_dict.values()
-
-        threads = []
-        for thermo in values:
-            thread = threading.Thread(target=update_job, args=(thermo,))
-            thread.start()
-            threads.append(thread)
-
-        # wait to threads done
-        for x in threads:
-            x.join()
-
-        last_update = time()
-
+    update_thermo_data()
     output['data'] = {k: v.status_data for (k, v) in thermo_dict.items()}
     output['lastUpdate'] = last_update
 
     return jsonify(output)
+
+
+@app.route("/write-stats", methods=['GET'])
+def write_stats():
+    global thermo_dict
+    update_thermo_data()
+    for k in thermo_dict:
+        thermo_dict[k].write_stats(k)
+
+    return jsonify(True)
 
 
 @app.route("/schedule", methods=['GET'])

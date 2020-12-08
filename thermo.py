@@ -1,6 +1,9 @@
-import config
 import socket
 from time import sleep, time
+from typing import Optional
+
+import config
+import database
 
 
 class Thermo:
@@ -18,15 +21,20 @@ class Thermo:
         5: "auto"
     }
 
-    # instance variables
-    s: socket = None
-    ip: int
-    display: str
-    port_number: int = config.PORT_NUM
-    auto_temp: int = 23
-    print_requests: bool = False
-    last_update: time = 0
-    status_data: dict = None
+    def __init__(self, ip: str, display: str, stats_db: database.Database = None):
+        self.display = display
+        self.s: socket = None
+        self.ip: str = ip
+        self.display: str = display
+        self.port_number: int = config.PORT_NUM
+        self.auto_temp: int = 23
+        self.print_requests: bool = False
+        self.last_update: time = 0
+        self.status_data: Optional[dict] = None
+        self.db: Optional[database.Database] = stats_db
+
+    def __str__(self):
+        return "<Thermo> IP: {}".format(self.ip, self.last_update)
 
     @staticmethod
     def print_hex(hex_data):
@@ -62,13 +70,6 @@ class Thermo:
             p_bytes += Thermo.encode_program_entry(change["hour"], change["minute"], change["temp"])
 
         return p_bytes
-
-    def __init__(self, ip: str, display: str):
-        self.ip = ip
-        self.display = display
-
-    def __str__(self):
-        return "<Thermo> IP: {}".format(self.ip, self.last_update)
 
     def set_debug(self):
         self.print_requests = True
@@ -240,6 +241,11 @@ class Thermo:
 
     def invalidate_status_data(self):
         self.last_update = 0
+
+    def write_stats(self, thermo_name: str):
+        if self.db and self.status_data:
+            prog_id = self.status_data['program'] if self.status_data['mode'] == 'auto' else None
+            self.db.write_stats(thermo_name, self.status_data['temp'], prog_id, self.status_data['req_temp'])
 
 
 class ConnectError(Exception):

@@ -21,3 +21,9 @@ ROUTER_API_PASSWORD = "pwd"
 ROUTER_DST_COMMENT = "ThermoDST"
 ROUTER_SRC_COMMENT = "ThermoSRC"
 
+# Stats Mysql Config
+STATS_ENABLED = True
+MYSQL_HOST = "localhost"
+MYSQL_DB = "thermo-stats"
+MYSQL_USER = ""
+MYSQL_PASSWORD = ""
