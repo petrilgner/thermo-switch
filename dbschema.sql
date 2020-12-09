@@ -6,6 +6,7 @@ create table measurements
 	actual_temp float null,
 	set_temp int null,
 	set_program int null,
+	relay tinyint null,
 	constraint measurements_pk
 		primary key (id)
 );

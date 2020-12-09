@@ -32,6 +32,7 @@ class Thermo:
         self.last_update: time = 0
         self.status_data: Optional[dict] = None
         self.db: Optional[database.Database] = stats_db
+        print("Initializing: {}".format(self))
 
     def __str__(self):
         return "<Thermo> IP: {}".format(self.ip, self.last_update)
@@ -75,6 +76,7 @@ class Thermo:
         self.print_requests = True
 
     def connect(self, attempts: int = 3):
+        print("Connecting: {}".format(self))
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.settimeout(1.50)
         socket_tuple = (self.ip, self.port_number)
@@ -102,6 +104,7 @@ class Thermo:
             sleep(1)
 
     def disconnect(self):
+        print("Disconecting: {}".format(self))
         self.send_hex_data("06000000050018fdfe0d0a")
         self.s.close()
 
@@ -245,7 +248,8 @@ class Thermo:
     def write_stats(self, thermo_name: str):
         if self.db and self.status_data:
             prog_id = self.status_data['program'] if self.status_data['mode'] == 'auto' else None
-            self.db.write_stats(thermo_name, self.status_data['temp'], prog_id, self.status_data['req_temp'])
+            self.db.write_stats(thermo_name, self.status_data['temp'], prog_id,
+                                self.status_data['req_temp'], self.status_data['relay'])
 
 
 class ConnectError(Exception):

@@ -3,7 +3,9 @@ import sys
 import threading
 from time import time
 
+import datetime
 from flask import Flask, jsonify, request, abort
+from typing import Optional
 
 import config
 import database
@@ -14,16 +16,16 @@ app = Flask(__name__)
 
 thermo_dict = {}
 last_update = 0
+db: Optional[database.Database] = None
 
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-@app.before_first_request
-def activate_job():
+def init_thermos():
+    global db
     # create db connection
-    db = None
     if config.STATS_ENABLED:
         try:
             db = database.Database()
@@ -100,16 +102,6 @@ def thermo_list():
     output['lastUpdate'] = last_update
 
     return jsonify(output)
-
-
-@app.route("/write-stats", methods=['GET'])
-def write_stats():
-    global thermo_dict
-    update_thermo_data()
-    for k in thermo_dict:
-        thermo_dict[k].write_stats(k)
-
-    return jsonify(True)
 
 
 @app.route("/schedule", methods=['GET'])
@@ -192,6 +184,16 @@ def auto_switch():
         return False
 
 
+@app.route("/stats", methods=['GET'])
+def fetch_daily_stats():
+    global db
+    day = datetime.datetime.strptime(request.args.get('day', type=str), '%Y-%m-%d')
+    if db and day:
+        stats = db.get_stats(day)
+        return stats
+    abort(500, description="Stats not available.")
+
+
 @app.route("/update-schedule", methods=['POST'])
 def update_schedule():
     if not request.json:
@@ -217,6 +219,15 @@ def update_schedule():
     return jsonify({"status": str(result)})
 
 
+def write_stats(signal_number=None):
+    print("Writing stats")
+    global thermo_dict
+    update_thermo_data()
+    for k in thermo_dict:
+        thermo_dict[k].write_stats(k)
+
+
 # Run Flask app
 if __name__ == "__main__":
+    init_thermos()
     app.run(host=config.LISTEN_IP, port=config.LISTEN_PORT)
