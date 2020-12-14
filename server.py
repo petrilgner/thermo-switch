@@ -1,9 +1,11 @@
 import json
+import logging
 import sys
 import threading
 from time import time
 
 import datetime
+import ipaddress
 from flask import Flask, jsonify, request, abort
 from typing import Optional
 
@@ -14,13 +16,57 @@ from thermo import Thermo, ProcessingError, ConnectError
 
 app = Flask(__name__)
 
+# request logging
+formatter = logging.Formatter('%(asctime)s %(message)s', '%Y-%m-%dT%H:%M:%SZ')
+request_logger = logging.getLogger('requests_log')
+file_handler = logging.FileHandler('requests.log')
+file_handler.setFormatter(formatter)
+request_logger.addHandler(file_handler)
+request_logger.setLevel(logging.INFO)
+
 thermo_dict = {}
 last_update = 0
 db: Optional[database.Database] = None
+logged_name = None
 
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
+
+
+@app.before_request
+def check_auth():
+    global logged_name
+
+    try:
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            bearer, _, token = auth_header.partition(' ')
+            print(token)
+            if bearer == 'Bearer' and token and token in config.AUTH_TOKENS:
+                logged_name = config.AUTH_TOKENS[token]
+                return
+    except NameError:
+        pass
+
+    ip_address = request.remote_addr
+    try:
+        for net in config.ALLOWED_NETWORKS:
+            if ipaddress.ip_address(ip_address) in ipaddress.ip_network(net):
+                return
+    except NameError:
+        pass
+
+    abort(401,
+          'Authentication required. '
+          'Please use the assigned access token or access to this resource from allowed network.')
+
+
+@app.after_request
+def log_request(response):
+    global request_logger
+    request_logger.info('%d: (%s,%s): %s', response.status_code, request.remote_addr, logged_name, request.full_path)
+    return response
 
 
 def init_thermos():

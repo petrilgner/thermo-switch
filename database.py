@@ -25,7 +25,7 @@ class Database:
                 devices[device_id] = []
 
             devices[device_id].append({
-                'time': row[2],
+                'time': row[2].strftime("%Y-%m-%d %H:%M:%S"),
                 'temp': row[3],
                 'set_temp': row[4],
                 'prog_id': row[5],
