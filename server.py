@@ -89,6 +89,13 @@ def init_thermos():
         # thermo_dict[dev_key].set_debug()
 
 
+def init_mqtt():
+    if config.MQTT_ENABLED:
+        print("Starting MQTT thread")
+        thread = threading.Thread(target=mqtt.init_mqtt, daemon=True)
+        thread.start()
+
+
 def update_job(thermo: Thermo, thermo_id: str):
     try:
         thermo.connect()
@@ -281,10 +288,6 @@ def write_stats(signal_number=None):
 # Run Flask app
 if __name__ == "__main__":
     init_thermos()
-
-    if config.MQTT_ENABLED:
-        print("Starting MQTT thread")
-        thread = threading.Thread(target=mqtt.init_mqtt, daemon=True)
-        thread.start()
+    init_mqtt()
 
     app.run(host=config.LISTEN_IP, port=config.LISTEN_PORT)

@@ -1,9 +1,10 @@
 import uwsgi
 
 from config import STATS_INTERVAL, STATS_ENABLED
-from server import app, write_stats, init_thermos
+from server import app, write_stats, init_thermos, init_mqtt
 
 init_thermos()
+init_mqtt()
 
 # setup updater signal
 if STATS_ENABLED:
