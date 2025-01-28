@@ -1,9 +1,11 @@
 import json
 import logging
+import queue
 import sys
 import threading
 from time import time
 
+import mqtt
 import datetime
 import ipaddress
 from flask import Flask, jsonify, request, abort
@@ -28,6 +30,8 @@ thermo_dict = {}
 last_update = 0
 db: Optional[database.Database] = None
 logged_name = None
+
+update_thermo_result_queue = queue.Queue()
 
 
 def eprint(*args, **kwargs):
@@ -85,11 +89,13 @@ def init_thermos():
         # thermo_dict[dev_key].set_debug()
 
 
-def update_job(thermo: Thermo):
+def update_job(thermo: Thermo, thermo_id: str):
     try:
         thermo.connect()
         thermo.update_status()
         thermo.disconnect()
+        if config.MQTT_ENABLED:
+            mqtt.data_queue.put((thermo_id, thermo.status_data))
 
     except ConnectError as e:
         eprint("[CONN_EXCEPT][%s] %s " % (thermo, e))
@@ -107,15 +113,14 @@ def update_thermo_data():
     # update data
     if time() > (last_update + config.DATA_VALIDITY_SEC):
         # fetch data in parallel
-        values = thermo_dict.values()
 
         threads = []
-        for thermo in values:
-            thread = threading.Thread(target=update_job, args=(thermo,))
+        for thermo_id, thermo in thermo_dict.items():
+            thread = threading.Thread(target=update_job, args=(thermo, thermo_id))
             thread.start()
             threads.append(thread)
 
-        # wait to threads done
+        # wait to thread done
         for x in threads:
             x.join()
 
@@ -276,4 +281,10 @@ def write_stats(signal_number=None):
 # Run Flask app
 if __name__ == "__main__":
     init_thermos()
+
+    if config.MQTT_ENABLED:
+        print("Starting MQTT thread")
+        thread = threading.Thread(target=mqtt.init_mqtt, daemon=True)
+        thread.start()
+
     app.run(host=config.LISTEN_IP, port=config.LISTEN_PORT)

@@ -2,7 +2,7 @@ LISTEN_IP = "172.20.1.10"
 LISTEN_PORT = 5000
 
 # Thermostats config
-DATA_VALIDITY_SEC = 10
+DATA_VALIDITY_SEC = 60
 DEVICES = {
     "Test": {'ip': "192.20.9.10", 'display': "Test"},
 }
@@ -35,3 +35,11 @@ MYSQL_HOST = "localhost"
 MYSQL_DB = "thermo_stats"
 MYSQL_USER = "thermo_stats"
 MYSQL_PASSWORD = "XXX"
+
+# MQTT Config
+MQTT_ENABLED = True
+MQTT_HOST = "127.0.0.1"
+MQTT_PORT = 1883
+MQTT_USER = "topeni"
+MQTT_PASSWORD = "XXX"
+MQTT_TOPIC = "thermoswitch"
