@@ -289,5 +289,6 @@ def write_stats(signal_number=None):
 if __name__ == "__main__":
     init_thermos()
     init_mqtt()
+    update_thermo_data()
 
     app.run(host=config.LISTEN_IP, port=config.LISTEN_PORT)
