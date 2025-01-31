@@ -88,17 +88,17 @@ class Thermo:
                 return
 
             except ConnectionResetError as e:
-                print("[CONN_RESET] %s" % e)
+                print(f"[CONN_RESET][{self.ip}] {e}")
                 attempts -= 1
             except ConnectionError as e:
-                print("[CONN_ERR] %s" % e)
+                print(f"[CONN_ERR][{self.ip}] {e}")
                 attempts -= 1
             except OSError as e:
-                print("[CONN_OS_ERR] %s" % e)
+                print(f"[CONN_OS_ERR][{self.ip}] {e}")
                 attempts -= 1
 
             if not attempts:
-                print("[CONN_GIVEUP] Giving up...")
+                print(f"[CONN_GIVEUP][{self.ip}] Giving up...")
                 raise ConnectError('No more tries, interrupted.')
 
             sleep(1)
